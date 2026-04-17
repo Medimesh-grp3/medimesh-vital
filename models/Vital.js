@@ -14,3 +14,5 @@ const vitalSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 module.exports = mongoose.model('Vital', vitalSchema);
+
+//checking
