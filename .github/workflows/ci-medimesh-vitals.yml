@@ -1,3 +1,134 @@
+# name: "CI/CD — medimesh-vitals"
+# run-name: "medimesh-vitals | ${{ github.event.head_commit.message }} (${{ github.sha }})"
+
+# on:
+#   push:
+#     branches: [main]
+#   pull_request:
+#     branches: [main]
+
+# permissions:
+#   contents: write
+
+# jobs:
+
+#   # Stage 1: SonarQube Code Quality Analysis
+#   sonarqube:
+#     uses: Medimesh-grp3/template-ci/.github/workflows/template-sonarqube.yml@main
+#     with:
+#       service_name: medimesh-vitals
+#       service_path: .
+#       sonar_project_key: medimesh-vitals
+#     secrets:
+#       SONARQUBE_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+#       SONARQUBE_URL:   ${{ secrets.SONARQUBE_URL }}
+#       SMTP_USERNAME:   ${{ secrets.SMTP_USERNAME }}
+#       SMTP_PASSWORD:   ${{ secrets.SMTP_PASSWORD }}
+#       ALERT_EMAIL:     ${{ secrets.ALERT_EMAIL }}
+
+#   # Stage 2: Build Dependencies & Snyk Security Scan
+#   build-snyk:
+#     needs: sonarqube
+#     uses: Medimesh-grp3/template-ci/.github/workflows/template-build-snyk.yml@main
+#     with:
+#       service_name: medimesh-vitals
+#       service_path: .
+#       node_version: "20"
+#     secrets:
+#       SNYK_TOKEN:    ${{ secrets.SNYK_TOKEN }}
+#       SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+#       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+#       ALERT_EMAIL:   ${{ secrets.ALERT_EMAIL }}
+
+#   # Stage 3: Docker Build + Trivy Scan + Push to DockerHub
+#   docker:
+#     needs: build-snyk
+#     uses: Medimesh-grp3/template-ci/.github/workflows/template-docker.yml@main
+#     with:
+#       service_name:      medimesh-vitals
+#       service_path:      .
+#       docker_image_name: medimesh_medimesh-vitals
+#     secrets:
+#       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+#       DOCKERHUB_TOKEN:    ${{ secrets.DOCKERHUB_TOKEN }}
+#       SMTP_USERNAME:      ${{ secrets.SMTP_USERNAME }}
+#       SMTP_PASSWORD:      ${{ secrets.SMTP_PASSWORD }}
+#       ALERT_EMAIL:        ${{ secrets.ALERT_EMAIL }}
+
+#   # Stage 4: Approval Gate — Pauses for Human Approval
+#   # NOTE: No "if:" here — critical to avoid workflow parse failure
+#   approval:
+#     needs: docker
+#     uses: Medimesh-grp3/template-ci/.github/workflows/template-approval-gate.yml@main
+#     with:
+#       service_name: medimesh-vitals
+#       image_tag:    ${{ needs.docker.outputs.version }}
+#       values_key:   vitals
+#     secrets:
+#       SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+#       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+#       ALERT_EMAIL:   ${{ secrets.ALERT_EMAIL }}
+
+#   # Stage 5: CD — Update ArgoCD Manifest (runs after approval)
+#   deploy:
+#     needs: [docker, approval]
+#     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+#     uses: Medimesh-grp3/template-ci/.github/workflows/template-cd.yml@main
+#     with:
+#       service_name: medimesh-vitals
+#       values_key:   vitals
+#       image_tag:    ${{ needs.docker.outputs.version }}
+#     secrets:
+#       MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
+#       SMTP_USERNAME:     ${{ secrets.SMTP_USERNAME }}
+#       SMTP_PASSWORD:     ${{ secrets.SMTP_PASSWORD }}
+#       ALERT_EMAIL:       ${{ secrets.ALERT_EMAIL }}
+
+#   # Final: Success Notification
+#   notify-success:
+#     name: "Pipeline Complete — medimesh-vitals"
+#     runs-on: ubuntu-latest
+#     needs: [sonarqube, build-snyk, docker, approval, deploy]
+#     if: |
+#       always() &&
+#       needs.docker.result == 'success' &&
+#       github.event_name != 'pull_request'
+#     steps:
+#       - name: Send Success Email
+#         uses: dawidd6/action-send-mail@v3
+#         with:
+#           server_address: smtp.gmail.com
+#           server_port: 465
+#           username: ${{ secrets.SMTP_USERNAME }}
+#           password: ${{ secrets.SMTP_PASSWORD }}
+#           subject: "MediMesh CI/CD Passed — medimesh-vitals (${{ needs.docker.outputs.version }})"
+#           to: ${{ secrets.ALERT_EMAIL }}
+#           from: MediMesh CI/CD Pipeline
+#           body: |
+#             ════════════════════════════════════════════════════════
+#             MediMesh CI/CD Pipeline — ALL STAGES PASSED
+#             ════════════════════════════════════════════════════════
+#             Service : medimesh-vitals
+#             Version : ${{ needs.docker.outputs.version }}
+#             Branch  : ${{ github.ref_name }}
+#             Commit  : ${{ github.sha }}
+#             Author  : ${{ github.actor }}
+#             ────────────────────────────────────────────────────────
+#             1. SonarQube  — Code quality passed
+#             2. Build      — Dependencies installed
+#             3. Snyk       — Security scan done
+#             4. Docker     — Image built
+#             5. Trivy      — Container scanned
+#             6. Push       — Image on DockerHub
+#             7. Approval   — Human approved deployment
+#             8. CD         — ArgoCD manifest updated
+#             ────────────────────────────────────────────────────────
+#             Image: ${{ secrets.DOCKERHUB_USERNAME }}/medimesh_medimesh-vitals:${{ needs.docker.outputs.version }}
+#             ArgoCD is now deploying to cluster automatically.
+#             Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+#             ════════════════════════════════════════════════════════
+
+
 name: "CI/CD — medimesh-vitals"
 run-name: "medimesh-vitals | ${{ github.event.head_commit.message }} (${{ github.sha }})"
 
@@ -9,10 +140,11 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
 
-  # Stage 1: SonarQube Code Quality Analysis
+  # ── Stage 1: SonarQube Code Quality ──────────────────────
   sonarqube:
     uses: Medimesh-grp3/template-ci/.github/workflows/template-sonarqube.yml@main
     with:
@@ -26,7 +158,7 @@ jobs:
       SMTP_PASSWORD:   ${{ secrets.SMTP_PASSWORD }}
       ALERT_EMAIL:     ${{ secrets.ALERT_EMAIL }}
 
-  # Stage 2: Build Dependencies & Snyk Security Scan
+  # ── Stage 2: Build + Snyk Security Scan ──────────────────
   build-snyk:
     needs: sonarqube
     uses: Medimesh-grp3/template-ci/.github/workflows/template-build-snyk.yml@main
@@ -40,7 +172,7 @@ jobs:
       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
       ALERT_EMAIL:   ${{ secrets.ALERT_EMAIL }}
 
-  # Stage 3: Docker Build + Trivy Scan + Push to DockerHub
+  # ── Stage 3: Docker Build + Trivy + Push ─────────────────
   docker:
     needs: build-snyk
     uses: Medimesh-grp3/template-ci/.github/workflows/template-docker.yml@main
@@ -55,8 +187,7 @@ jobs:
       SMTP_PASSWORD:      ${{ secrets.SMTP_PASSWORD }}
       ALERT_EMAIL:        ${{ secrets.ALERT_EMAIL }}
 
-  # Stage 4: Approval Gate — Pauses for Human Approval
-  # NOTE: No "if:" here — critical to avoid workflow parse failure
+  # ── Stage 4: Approval Gate ────────────────────────────────
   approval:
     needs: docker
     uses: Medimesh-grp3/template-ci/.github/workflows/template-approval-gate.yml@main
@@ -69,22 +200,34 @@ jobs:
       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
       ALERT_EMAIL:   ${{ secrets.ALERT_EMAIL }}
 
-  # Stage 5: CD — Update ArgoCD Manifest (runs after approval)
+  # ── Stage 5: OIDC Direct Deploy ───────────────────────────
+  # No ArgoCD. No static kubeconfig. No long-lived token.
+  # GitHub OIDC JWT authenticates directly to kube-apiserver.
   deploy:
     needs: [docker, approval]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    uses: Medimesh-grp3/template-ci/.github/workflows/template-cd.yml@main
+    if: |
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'push' &&
+      needs.docker.result == 'success' &&
+      needs.approval.result == 'success'
+    uses: Medimesh-grp3/template-ci/.github/workflows/template-oidc-deploy.yml@main
     with:
-      service_name: medimesh-vitals
-      values_key:   vitals
-      image_tag:    ${{ needs.docker.outputs.version }}
+      service_name:      medimesh-vitals
+      image_tag:         ${{ needs.docker.outputs.version }}
+      rollout_name:      medimesh-vitals
+      container_name:    medimesh-vitals
+      namespace:         medimesh-backend
+      docker_image_name: medimesh_medimesh-vitals
     secrets:
-      MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
-      SMTP_USERNAME:     ${{ secrets.SMTP_USERNAME }}
-      SMTP_PASSWORD:     ${{ secrets.SMTP_PASSWORD }}
-      ALERT_EMAIL:       ${{ secrets.ALERT_EMAIL }}
+      K8S_CA_CERT:        ${{ secrets.K8S_CA_CERT }}
+      K8S_API_SERVER:     ${{ secrets.K8S_API_SERVER }}
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      SMTP_USERNAME:      ${{ secrets.SMTP_USERNAME }}
+      SMTP_PASSWORD:      ${{ secrets.SMTP_PASSWORD }}
+      ALERT_EMAIL:        ${{ secrets.ALERT_EMAIL }}
 
-  # Final: Success Notification
+  # ── Final: Success Notification ───────────────────────────
   notify-success:
     name: "Pipeline Complete — medimesh-vitals"
     runs-on: ubuntu-latest
@@ -114,16 +257,16 @@ jobs:
             Commit  : ${{ github.sha }}
             Author  : ${{ github.actor }}
             ────────────────────────────────────────────────────────
-            1. SonarQube  — Code quality passed
-            2. Build      — Dependencies installed
-            3. Snyk       — Security scan done
-            4. Docker     — Image built
-            5. Trivy      — Container scanned
-            6. Push       — Image on DockerHub
-            7. Approval   — Human approved deployment
-            8. CD         — ArgoCD manifest updated
+            1. SonarQube   — Code quality passed
+            2. Build       — Dependencies installed
+            3. Snyk        — Security scan done
+            4. Docker      — Image built
+            5. Trivy       — Container scanned
+            6. Push        — Image on DockerHub
+            7. Approval    — Human approved
+            8. OIDC Deploy — Deployed directly to cluster
             ────────────────────────────────────────────────────────
-            Image: ${{ secrets.DOCKERHUB_USERNAME }}/medimesh_medimesh-vitals:${{ needs.docker.outputs.version }}
-            ArgoCD is now deploying to cluster automatically.
-            Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            Image: bharath44623/medimesh_medimesh-vitals:${{ needs.docker.outputs.version }}
+            Auth : GitHub OIDC (no static kubeconfig!)
+            Run  : ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
             ════════════════════════════════════════════════════════
