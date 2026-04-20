@@ -15,4 +15,3 @@ const vitalSchema = new mongoose.Schema({
 
 module.exports = mongoose.model('Vital', vitalSchema);
 
-//checking
