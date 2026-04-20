@@ -4,6 +4,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install --production && npm cache clean --force
 COPY . .
+knsadajfnawm
+
 RUN rm -rf /usr/local/lib/node_modules/npm /opt/yarn-v* /usr/local/lib/node_modules/corepack /root/.npm
 EXPOSE 5005
 CMD ["node", "server.js"]
