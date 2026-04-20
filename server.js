@@ -1,4 +1,3 @@
-//check1
 
 require('dotenv').config();
 const express = require('express');
